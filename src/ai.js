@@ -1,7 +1,8 @@
 import config from './config.js';
 
 // ส่งบทสนทนาไปถาม AI ผ่าน endpoint /chat/completions (มาตรฐานเดียวกับ OpenAI)
-export async function askAI(messages) {
+// ถ้าไม่ระบุ model จะใช้ค่าเริ่มต้นจาก .env
+export async function askAI(messages, model = config.aiModel) {
   const res = await fetch(`${config.aiBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -9,7 +10,7 @@ export async function askAI(messages) {
       Authorization: `Bearer ${config.aiApiKey}`,
     },
     body: JSON.stringify({
-      model: config.aiModel,
+      model,
       messages,
       temperature: 0.7,
       // ขอ JSON ชุดเดียวจบ — server/proxy บางตัวตอบเป็น stream เป็นค่าเริ่มต้น

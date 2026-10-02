@@ -1,6 +1,7 @@
 import config from './config.js';
 import { askAI } from './ai.js';
 import { getMessages, remember } from './memory.js';
+import { getModel } from './settings.js';
 
 // สร้าง handler สำหรับ event MessageCreate
 export function createMessageHandler() {
@@ -26,7 +27,9 @@ export function createMessageHandler() {
         { role: 'user', content },
       ];
 
-      const reply = await askAI(messages);
+      // ใช้ model ที่ตั้งผ่าน /model ของเซิร์ฟเวอร์นี้ ถ้าไม่มีใช้ค่าเริ่มต้นจาก .env
+      const model = getModel(message.guildId) ?? config.aiModel;
+      const reply = await askAI(messages, model);
 
       // บันทึกเฉพาะเมื่อได้คำตอบสำเร็จ เพื่อไม่ให้คำถามค้างอยู่ในประวัติ
       remember(key, 'user', content);
