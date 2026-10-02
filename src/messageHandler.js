@@ -1,0 +1,44 @@
+import config from './config.js';
+import { askAI } from './ai.js';
+import { getMessages, remember } from './memory.js';
+
+// สร้าง handler สำหรับ event MessageCreate
+export function createMessageHandler() {
+  return async function handleMessage(message) {
+    // ข้ามข้อความจากบอทด้วยกันเอง และข้อความนอกเซิร์ฟเวอร์ (DM)
+    if (message.author.bot || !message.guild) return;
+
+    // ตอบเฉพาะช่องที่กำหนดไว้ใน ALLOWED_CHANNEL_IDS
+    if (!config.allowedChannelIds.has(message.channel.id)) return;
+
+    const content = message.content.trim();
+    if (!content) return;
+
+    const key = `${message.guildId}:${message.channel.id}`;
+
+    // ขึ้นสถานะ "กำลังพิมพ์..." ระหว่างรอ AI (ถ้า AI ใช้เวลานานกว่า ~10 วิ สถานะจะหายไปเอง ไม่กระทบการทำงาน)
+    await message.channel.sendTyping().catch(() => {});
+
+    try {
+      const messages = [
+        { role: 'system', content: config.systemPrompt },
+        ...getMessages(key),
+        { role: 'user', content },
+      ];
+
+      const reply = await askAI(messages);
+
+      // บันทึกเฉพาะเมื่อได้คำตอบสำเร็จ เพื่อไม่ให้คำถามค้างอยู่ในประวัติ
+      remember(key, 'user', content);
+      remember(key, 'assistant', reply);
+
+      // split: true ช่วยแบงข้อความยาวเกิน 2,000 ตัวอักษรเป็นหลายข้อความให้อัตโนมัติ
+      await message.channel.send({ content: reply, split: true });
+    } catch (err) {
+      console.error(`[AI] เกิดข้อผิดพลาดตอนตอบช่อง ${message.channel.id}:`, err.message);
+      await message.channel
+        .send('⚠️ ขออภัยครับ เกิดปัญหาในการเชื่อมต่อกับ AI ตอนนี้ ลองถามใหม่อีกครั้งนะครับ')
+        .catch((sendErr) => console.error('[AI] ส่งข้อความแจ้งเตือนไม่สำเร็จ:', sendErr.message));
+    }
+  };
+}
