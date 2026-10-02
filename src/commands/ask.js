@@ -1,11 +1,11 @@
 import { InteractionContextType, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import config from '../config.js';
-import { askAI } from '../ai.js';
+import { askAI, describeAIError } from '../ai.js';
 import { getMessages, remember } from '../memory.js';
 import { getModel } from '../settings.js';
 import { checkCooldown, clearBusy, isBusy, setBusy } from '../cooldown.js';
 import { recordUsage } from '../usage.js';
-import { answerEmbeds } from '../embed.js';
+import { answerEmbeds, buildErrorEmbed } from '../embed.js';
 import { log } from '../logger.js';
 
 export const data = new SlashCommandBuilder()
@@ -36,9 +36,10 @@ export async function execute(interaction) {
   await interaction.deferReply();
   setBusy(interaction.user.id);
 
+  const model = getModel(interaction.guildId) ?? config.aiModel;
+
   try {
     const key = `${interaction.guildId}:${interaction.channelId}`;
-    const model = getModel(interaction.guildId) ?? config.aiModel;
     const messages = [
       { role: 'system', content: config.systemPrompt },
       ...getMessages(key),
@@ -53,9 +54,7 @@ export async function execute(interaction) {
     await interaction.editReply({ embeds: answerEmbeds(reply, model) });
   } catch (err) {
     log.error(`  ❌  [/ask] ${err.message}`);
-    await interaction.editReply({
-      content: '⚠️ ขออภัยครับ เกิดปัญหาในการเชื่อมต่อกับ AI ตอนนี้ ลองถามใหม่อีกครั้งนะครับ',
-    });
+    await interaction.editReply({ embeds: [buildErrorEmbed(describeAIError(err), model)] });
   } finally {
     clearBusy(interaction.user.id);
   }

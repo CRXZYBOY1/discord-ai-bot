@@ -4,10 +4,11 @@ import * as resetCommand from './commands/reset.js';
 import * as askCommand from './commands/ask.js';
 import * as usageCommand from './commands/usage.js';
 import * as drawCommand from './commands/draw.js';
+import * as compareCommand from './commands/compare.js';
 import { log } from './logger.js';
 
 // ทะเบียนคำสั่ง slash ทั้งหมดของบอท
-const COMMANDS = [modelCommand, resetCommand, askCommand, usageCommand, drawCommand];
+const COMMANDS = [modelCommand, resetCommand, askCommand, usageCommand, drawCommand, compareCommand];
 
 // ลงทะเบียน slash command ให้ทุกเซิร์ฟเวอร์ที่บอทอยู่
 // (แบบ per-guild เพื่อให้คำสั่งโผล่ทันที ไม่ต้องรอ propagation แบบ global)

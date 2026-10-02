@@ -1,17 +1,19 @@
 import { PermissionFlagsBits } from 'discord.js';
 import config from './config.js';
-import { askAI } from './ai.js';
+import { askAI, describeAIError } from './ai.js';
 import { getMessages, remember } from './memory.js';
 import { getModel } from './settings.js';
 import { log } from './logger.js';
-import { answerEmbeds } from './embed.js';
+import { answerEmbeds, buildErrorEmbed } from './embed.js';
 import { checkCooldown, isBusy, setBusy, clearBusy } from './cooldown.js';
 import { recordUsage } from './usage.js';
+import { collectDocuments } from './documents.js';
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB ต่อรูป
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif)$/i;
 const DEFAULT_IMAGE_PROMPT = 'ช่วยดูรูปที่แนบมาให้หน่อยครับ มีอะไรอยู่ในรูป อธิบายให้เข้าใจง่าย';
+const DEFAULT_DOC_PROMPT = 'ช่วยสรุปเนื้อหาสำคัญในเอกสารที่แนบมาให้หน่อยครับ';
 const THREAD_ARCHIVE_MINUTES = 1440; // ซ่อนเธรดอัตโนมัติหลังไม่มีคนพิมพ์ 1 วัน
 const NOTICE_INTERVAL_MS = 30 * 1000; // แจ้งเตือน anti-spam ไม่บ่อยกว่านี้
 const MESSAGE_LINK = /https?:\/\/(?:[a-z]+\.)?discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/gi;
@@ -123,7 +125,8 @@ export function createMessageHandler() {
 
     const text = message.content.trim();
     const images = await collectImages(message);
-    if (!text && images.length === 0) return;
+    const documents = await collectDocuments(message);
+    if (!text && images.length === 0 && documents.length === 0) return;
 
     // กันสแปม (ผู้ดูแลเซิร์ฟเวอร์ไม่โดนจำกัด)
     const canBypass = message.member?.permissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
@@ -155,16 +158,25 @@ export function createMessageHandler() {
     // ขึ้นสถานะ "กำลังพิมพ์..." ระหว่างรอ AI (ถ้า AI ใช้เวลานานกว่า ~10 วิ สถานะจะหายไปเอง ไม่กระทบการทำงาน)
     await target.sendTyping().catch(() => {});
 
+    // ใช้ model ที่ตั้งผ่าน /model ของเซิร์ฟเวอร์นี้ ถ้าไม่มีใช้ค่าเริ่มต้นจาก .env
+    const model = getModel(message.guildId) ?? config.aiModel;
+
     try {
       setBusy(message.author.id);
 
-      // ข้อความที่มีแต่รูป ใช้คำถามดีฟอลต์แทน
-      let userText = text || DEFAULT_IMAGE_PROMPT;
-      if (contextParts.length > 0) {
-        userText = `${contextParts.join('\n')}\n\nคำถาม: ${userText}`;
+      // ข้อความที่มีแต่รูป/เอกสาร ใช้คำถามดีฟอลต์แทน
+      let userText = text || (images.length > 0 ? DEFAULT_IMAGE_PROMPT : DEFAULT_DOC_PROMPT);
+
+      // ประกอบบริบทเสริม: ข้อความที่ reply/ลิงก์มา + เนื้อหาเอกสารแนบ
+      const prefix = [];
+      if (contextParts.length > 0) prefix.push(contextParts.join('\n'));
+      if (documents.length > 0) {
+        prefix.push(documents.map((d) => `[เอกสารแนบ: ${d.name}]\n${d.content}`).join('\n\n'));
       }
-      // ประวัติเก็บเฉพาะข้อความ ไม่เก็บ base64 รูป (กันหน่วยความจำบวม)
-      const historyText = text || '[ผู้ใช้ส่งรูปภาพมาให้ดู]';
+      if (prefix.length > 0) userText = `${prefix.join('\n\n')}\n\nคำถาม: ${userText}`;
+
+      // ประวัติเก็บเฉพาะข้อความ ไม่เก็บ base64 รูป/เนื้อหาเอกสาร (กันหน่วยความจำบวม)
+      const historyText = text || '[ผู้ใช้ส่งไฟล์แนบมาให้ดู]';
 
       const userContent =
         images.length > 0
@@ -181,7 +193,6 @@ export function createMessageHandler() {
       ];
 
       // ใช้ model ที่ตั้งผ่าน /model ของเซิร์ฟเวอร์นี้ ถ้าไม่มีใช้ค่าเริ่มต้นจาก .env
-      const model = getModel(message.guildId) ?? config.aiModel;
       const { reply, usage } = await askAI(messages, model);
 
       // บันทึกเฉพาะเมื่อได้คำตอบสำเร็จ เพื่อไม่ให้คำถามค้างอยู่ในประวัติ
@@ -193,8 +204,9 @@ export function createMessageHandler() {
       await target.send({ embeds: answerEmbeds(reply, model) });
     } catch (err) {
       log.error(`  ❌  [AI] ตอบช่อง ${channel.id} ไม่สำเร็จ: ${err.message}`);
+      // แจ้งผู้ใช้ใน Discord พร้อมสาเหตุที่วิเคราะห์ได้
       await target
-        .send('⚠️ ขออภัยครับ เกิดปัญหาในการเชื่อมต่อกับ AI ตอนนี้ ลองถามใหม่อีกครั้งนะครับ')
+        .send({ embeds: [buildErrorEmbed(describeAIError(err), model)] })
         .catch((sendErr) => log.error(`  ❌  ส่งข้อความแจ้งเตือนไม่สำเร็จ: ${sendErr.message}`));
     } finally {
       clearBusy(message.author.id);
