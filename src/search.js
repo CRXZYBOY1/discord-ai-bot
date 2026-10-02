@@ -11,7 +11,7 @@ const MAX_RESULTS = 5;
 
 // คำที่บ่งบอกว่าคำถามต้องใช้ข้อมูลปัจจุบัน (ไทย+อังกฤษ)
 const LIVE_KEYWORDS =
-  /วันนี้|พรุ่งนี้|เมื่อวาน|ตอนนี้|ล่าสุด|กี่โมง|ข่าว|พยากรณ์|อากาศ|ฝนตก|อุณหภูมิ|ราคา|ค่าเงิน|อัตราแลกเปลี่ยน|ทองคำ|น้ำมัน|หุ้น|คริปโต|บิตคอยน์|ผลฟุตบอล|ผลการแข่งขัน|ออกอากาศ|ปีนี้|เดือนนี้|สัปดาห์นี้|today|tonight|tomorrow|yesterday|right now|latest|breaking|news|weather|forecast|temperature|price of|stock|exchange rate|bitcoin|live score|current(ly)?|202[5-9]/i;
+  /วันนี้|พรุ่งนี้|เมื่อวาน|ตอนนี้|ล่าสุด|กี่โมง|ข่าว|พยากรณ์|อากาศ|ฝนตก|อุณหภูมิ|ราคา|ค่าเงิน|อัตราแลกเปลี่ยน|ทองคำ|น้ำมัน|หุ้น|ดอกเบี้ย|เงินเฟ้อ|คริปโต|บิตคอยน์|หวย|ล็อตเตอรี่|ล๊อตเตอรี่|สลากกินแบ่ง|ผลสลาก|ผลบอล|ผลมวย|ผลกีฬา|ฟุตบอล|ผลฟุตบอล|ผลการแข่งขัน|ออกอากาศ|ปีนี้|เดือนนี้|สัปดาห์นี้|today|tonight|tomorrow|yesterday|right now|latest|breaking|news|weather|forecast|temperature|price of|stock|exchange rate|bitcoin|lottery|live score|current(ly)?|202[5-9]/i;
 
 export function needsLiveInfo(text) {
   return LIVE_KEYWORDS.test(text);
