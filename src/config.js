@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { log } from './logger.js';
 
 // ตรวจว่าค่าที่จำเป็นครบ ถ้าไม่ครบแจ้งเป็นภาษาไทยแล้วออกจากโปรแกรมทันที
 const REQUIRED = [
@@ -11,8 +12,10 @@ const REQUIRED = [
 
 for (const [name, hint] of REQUIRED) {
   if (!process.env[name]?.trim()) {
-    console.error(`\n❌ ขาดค่าที่จำเป็นในไฟล์ .env: ${name}`);
-    console.error(`   วิธีหาค่า: ${hint}\n`);
+    log.error('');
+    log.error(`  ❌  ขาดค่าที่จำเป็นในไฟล์ .env: ${name}`);
+    log.error(`  วิธีหาค่า: ${hint}`);
+    log.error('');
     process.exit(1);
   }
 }
@@ -23,8 +26,10 @@ const allowedChannelIds = process.env.ALLOWED_CHANNEL_IDS.split(',')
 
 const invalidIds = allowedChannelIds.filter((id) => !/^\d+$/.test(id));
 if (allowedChannelIds.length === 0 || invalidIds.length > 0) {
-  console.error('\n❌ ALLOWED_CHANNEL_IDS ไม่ถูกต้อง ต้องเป็น Channel ID (ตัวเลข) คั่นด้วยเครื่องหมาย ,');
-  if (invalidIds.length > 0) console.error(`   ค่าที่ผิด: ${invalidIds.join(', ')}\n`);
+  log.error('');
+  log.error('  ❌  ALLOWED_CHANNEL_IDS ไม่ถูกต้อง ต้องเป็น Channel ID (ตัวเลข) คั่นด้วยเครื่องหมาย ,');
+  if (invalidIds.length > 0) log.error(`  ค่าที่ผิด: ${invalidIds.join(', ')}`);
+  log.error('');
   process.exit(1);
 }
 

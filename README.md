@@ -136,10 +136,12 @@ npm.cmd start
 src/
 ├── index.js          # จุดเริ่มรัน: เชื่อมต่อ Discord และผูก event ต่าง ๆ
 ├── config.js         # โหลดและตรวจค่าจากไฟล์ .env
+├── logger.js         # ตัวช่วยพิมพ์ log มีสี/emoji (ปิดสีเองถ้าเทอร์มินัลไม่รองรับ)
+├── banner.js         # หน้าจอสรุปสถานะตอนบอทออนไลน์
 ├── ai.js             # เรียก AI API (/chat/completions)
 ├── memory.js         # เก็บประวัติบทสนทนาแยกตามช่อง
 ├── settings.js       # เก็บ model ที่ตั้งผ่าน /model แยกตามเซิร์ฟเวอร์ (ลงไฟล์ data/)
-├── models.js         # ดึงรายชื่อ model จาก AI server (แคช 5 นาที)
+├── models.js         # ดึงรายชื่อ model จาก AI server (แคชในเครื่อง + รีเฟรชเบื้องหลัง)
 ├── commands.js       # ลงทะเบียนคำสั่ง และรับ interaction จาก Discord
 ├── commands/
 │   └── model.js      # คำสั่ง /model (set/show/reset + ค้นหา model)

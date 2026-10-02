@@ -1,5 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import * as modelCommand from './commands/model.js';
+import { log } from './logger.js';
 
 // ลงทะเบียน slash command ให้ทุกเซิร์ฟเวอร์ที่บอทอยู่
 // (แบบ per-guild เพื่อให้คำสั่งโผล่ทันที ไม่ต้องรอ propagation แบบ global)
@@ -12,17 +13,17 @@ export async function registerCommands(client) {
       await client.application.commands.set(json, guild.id);
       ok += 1;
     } catch (err) {
-      console.error(`\n⚠️ ลงทะเบียนคำสั่ง /model ในเซิร์ฟเวอร์ ${guild.id} ไม่สำเร็จ: ${err.message}`);
+      log.error(`  ❌  ลงทะเบียนคำสั่ง /model ในเซิร์ฟเวอร์ ${guild.id} ไม่สำเร็จ: ${err.message}`);
       if (err.status === 403) {
-        console.error('   เป็นเพราะบอทถูกเชิญโดยไม่มีสิทธิ์ applications.commands — วิธีแก้:');
-        console.error('   ไปที่ OAuth2 > URL Generator ติ๊ก scope ทั้ง bot และ applications.commands แล้วเชิญบอทซ้ำ (ดู README.md ขั้นตอน 2)');
-        console.error('   บอทยังตอบคำถามปกติทุกอย่าง มีแต่คำสั่ง /model ที่ยังใช้ไม่ได้\n');
+        log.warn('     เป็นเพราะบอทถูกเชิญโดยไม่มีสิทธิ์ applications.commands — วิธีแก้:');
+        log.warn('     ไปที่ OAuth2 > URL Generator ติ๊ก scope ทั้ง bot และ applications.commands แล้วเชิญบอทซ้ำ (ดู README.md ขั้นตอน 2)');
+        log.warn('     บอทยังตอบคำถามปกติทุกอย่าง มีแต่คำสั่ง /model ที่ยังใช้ไม่ได้');
       }
     }
   }
 
   if (ok > 0) {
-    console.log(`   ลงทะเบียนคำสั่ง /model ใน ${ok} เซิร์ฟเวอร์เรียบร้อย`);
+    log.success(`  ⚡  ลงทะเบียนคำสั่ง /model แล้ว (${ok} เซิร์ฟเวอร์)`);
   }
 }
 
@@ -35,7 +36,7 @@ export async function handleInteraction(interaction) {
       return await modelCommand.execute(interaction);
     }
   } catch (err) {
-    console.error('[คำสั่ง /model] เกิดข้อผิดพลาด:', err.message);
+    log.error(`  ❌  [คำสั่ง /model] เกิดข้อผิดพลาด: ${err.message}`);
 
     if (interaction.isAutocomplete()) {
       await interaction.respond([]).catch(() => {});

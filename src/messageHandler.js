@@ -2,6 +2,7 @@ import config from './config.js';
 import { askAI } from './ai.js';
 import { getMessages, remember } from './memory.js';
 import { getModel } from './settings.js';
+import { log } from './logger.js';
 
 // สร้าง handler สำหรับ event MessageCreate
 export function createMessageHandler() {
@@ -38,10 +39,10 @@ export function createMessageHandler() {
       // split: true ช่วยแบงข้อความยาวเกิน 2,000 ตัวอักษรเป็นหลายข้อความให้อัตโนมัติ
       await message.channel.send({ content: reply, split: true });
     } catch (err) {
-      console.error(`[AI] เกิดข้อผิดพลาดตอนตอบช่อง ${message.channel.id}:`, err.message);
+      log.error(`  ❌  [AI] ตอบช่อง ${message.channel.id} ไม่สำเร็จ: ${err.message}`);
       await message.channel
         .send('⚠️ ขออภัยครับ เกิดปัญหาในการเชื่อมต่อกับ AI ตอนนี้ ลองถามใหม่อีกครั้งนะครับ')
-        .catch((sendErr) => console.error('[AI] ส่งข้อความแจ้งเตือนไม่สำเร็จ:', sendErr.message));
+        .catch((sendErr) => log.error(`  ❌  ส่งข้อความแจ้งเตือนไม่สำเร็จ: ${sendErr.message}`));
     }
   };
 }

@@ -3,6 +3,8 @@ import config from './config.js';
 import { createMessageHandler } from './messageHandler.js';
 import { handleInteraction, registerCommands } from './commands.js';
 import { getCachedModelIds, refreshModelIds } from './models.js';
+import { log, paint } from './logger.js';
+import { printStartupBanner } from './banner.js';
 
 const client = new Client({
   intents: [
@@ -14,25 +16,26 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async (c) => {
-  console.log(`✅ บอทออนไลน์แล้วในชื่อ ${c.user.tag}`);
-  console.log(`   ตอบข้อความในช่อง: ${[...config.allowedChannelIds].join(', ')}`);
-  console.log(`   โมเดล AI (ค่าเริ่มต้น): ${config.aiModel} (${config.aiBaseUrl})`);
-  console.log('   พิมพ์ข้อความในช่องที่กำหนดเพื่อถาม AI หรือใช้คำสั่ง /model เพื่อเปลี่ยน model');
+  printStartupBanner(c);
 
-  // โหลดรายชื่อ model ไว้ล่วงหน้า — ถ้ามีแคชในเครื่อง ตอบใน /model ได้ทันที
-  // แม้ AI server ล่ม และดึงรายชื่อล่าสุดเบื้องหลังเมื่อ server ตอบได้
+  await registerCommands(c);
+
+  // ดึงรายชื่อ model ล่าสุดเบื้องหลัง — ไม่บล็อกการเริ่มทำงาน
   refreshModelIds()
-    .then((ids) => console.log(`   พร้อมรายชื่อ model ${ids.length} ตัวสำหรับคำสั่ง /model`))
+    .then((ids) => log.success(`  📚  อัพเดตรายชื่อ model ล่าสุดจาก server แล้ว ${ids.length.toLocaleString('en-US')} ตัว`))
     .catch(() => {
       const cached = getCachedModelIds().length;
-      console.log(
+      log.warn(
         cached > 0
-          ? `   ⚠️ ดึงรายชื่อ model ล่าสุดจาก server ไม่ได้ — ใช้แคชเดิม ${cached} ตัวต่อไป`
-          : '   ⚠️ ยังไม่มีรายชื่อ model (AI server ไม่ตอบ) — จะลองใหม่อัตโนมัติเมื่อมีคนใช้ /model'
+          ? `  ⚠️  AI server ไม่ตอบตอนนี้ — ใช้รายชื่อจากแคชเดิม ${cached.toLocaleString('en-US')} ตัวต่อไป`
+          : '  ⚠️  ยังไม่มีรายชื่อ model (AI server ไม่ตอบ) — จะลองใหม่อัตโนมัติเมื่อมีคนใช้ /model'
       );
     });
 
-  await registerCommands(client);
+  log.rule('━');
+  log.success('  🎉  พร้อมใช้งาน! พิมพ์ข้อความในช่องที่กำหนดเพื่อถาม AI');
+  log.dim('  ⌨️   คำสั่ง: /model set • /model show • /model reset');
+  log.rule('━');
 });
 
 client.on(Events.MessageCreate, createMessageHandler());
@@ -43,12 +46,14 @@ client.on(Events.InteractionCreate, handleInteraction);
 client.on(Events.GuildCreate, () => registerCommands(client));
 
 client.on(Events.Error, (err) => {
-  console.error('[Discord] client error:', err.message);
+  log.error(`  💥  [Discord] client error: ${err.message}`);
 });
 
 client.login(config.discordToken).catch((err) => {
-  console.error(`\n❌ ล็อกอิน Discord ไม่สำเร็จ: ${err.message}`);
-  console.error('   ตรวจสอบว่า DISCORD_TOKEN ในไฟล์ .env ถูกต้อง และเปิด Message Content Intent แล้ว\n');
+  log.error('');
+  log.error(`  ❌  ล็อกอิน Discord ไม่สำเร็จ: ${err.message}`);
+  log.error('  ตรวจสอบว่า DISCORD_TOKEN ในไฟล์ .env ถูกต้อง และเปิด Message Content Intent แล้ว');
+  log.error('');
   // รอให้ connection ที่ค้างปิดตัวก่อน ไม่งั้น libuv บน Windows จะ assert ตอนปิดโปรแกรม
   setTimeout(() => process.exit(1), 250);
 });
