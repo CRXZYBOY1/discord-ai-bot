@@ -3,6 +3,7 @@ import config from '../config.js';
 import { askAI, describeAIError } from '../ai.js';
 import { getCachedModelIds } from '../models.js';
 import { getModel } from '../settings.js';
+import { isModelHealthy, recordHealth } from '../model-health.js';
 import { checkCooldown, clearBusy, isBusy, setBusy } from '../cooldown.js';
 import { recordUsage } from '../usage.js';
 import { log } from '../logger.js';
@@ -23,10 +24,10 @@ export const data = new SlashCommandBuilder()
     opt.setName('model_b').setDescription('model ที่ 2 (ค่าเริ่มต้น: model ค่าเริ่มต้นจาก .env)').setAutocomplete(true)
   );
 
-// ค้นหา model — ใช้แคชในเครื่องเหมือน /model
+// ค้นหา model — ใช้แคชในเครื่องเหมือน /model และกรอง model ที่พังล่าสุดออก
 export async function autocomplete(interaction) {
   const typed = interaction.options.getFocused().toLowerCase();
-  const ids = getCachedModelIds();
+  let ids = getCachedModelIds().filter(isModelHealthy);
   const choices = ids
     .filter((id) => id.toLowerCase().includes(typed))
     .slice(0, 25)
@@ -40,8 +41,9 @@ function resolveDefaults(guildId, modelA, modelB) {
   let b = modelB || (config.aiModel !== a ? config.aiModel : null);
 
   if (!b) {
-    // หา model ตัวอื่นจากแคชมาเทียบอัตโนมัติ (ตัวแรกที่ไม่ใช่ model A)
-    b = getCachedModelIds().find((id) => id !== a) ?? null;
+    // หา model ตัวอื่นจากแคชมาเทียบ — เอาตัวที่มีสุขภาพดีก่อน ถ้าไม่มีเลยค่อยใช้ตัวไหนก็ได้
+    const pool = getCachedModelIds();
+    b = pool.find((id) => id !== a && isModelHealthy(id)) ?? pool.find((id) => id !== a) ?? null;
   }
   if (!b || a === b) return null;
   return { a, b };
@@ -103,12 +105,14 @@ export async function execute(interaction) {
     for (const [icon, model, result] of sides) {
       if (result.status === 'fulfilled') {
         const answer = result.value.reply;
+        recordHealth(model, true);
         recordUsage(interaction.guildId, interaction.user.id, model, result.value.usage);
         embed.addFields({
           name: `${icon} \`${model}\``,
           value: answer.length > FIELD_LIMIT ? `${answer.slice(0, FIELD_LIMIT)}…` : answer || '(ตอบว่าง)',
         });
       } else {
+        recordHealth(model, false, result.reason?.message);
         log.error(`  ❌  [/compare] ${model} ล้มเหลว: ${result.reason?.message?.slice(0, 120)}`);
         embed.addFields({
           name: `${icon} \`${model}\``,

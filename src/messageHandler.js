@@ -3,6 +3,7 @@ import config from './config.js';
 import { askAI, describeAIError } from './ai.js';
 import { getMessages, remember } from './memory.js';
 import { getModel } from './settings.js';
+import { recordHealth } from './model-health.js';
 import { log } from './logger.js';
 import { answerEmbeds, buildErrorEmbed } from './embed.js';
 import { checkCooldown, isBusy, setBusy, clearBusy } from './cooldown.js';
@@ -194,6 +195,7 @@ export function createMessageHandler() {
 
       // ใช้ model ที่ตั้งผ่าน /model ของเซิร์ฟเวอร์นี้ ถ้าไม่มีใช้ค่าเริ่มต้นจาก .env
       const { reply, usage } = await askAI(messages, model);
+      recordHealth(model, true);
 
       // บันทึกเฉพาะเมื่อได้คำตอบสำเร็จ เพื่อไม่ให้คำถามค้างอยู่ในประวัติ
       remember(key, 'user', historyText);
@@ -203,6 +205,7 @@ export function createMessageHandler() {
       // ตอบเป็น embed ในเธรด/ช่องปลายทาง
       await target.send({ embeds: answerEmbeds(reply, model) });
     } catch (err) {
+      recordHealth(model, false, err.message);
       log.error(`  ❌  [AI] ตอบช่อง ${channel.id} ไม่สำเร็จ: ${err.message}`);
       // แจ้งผู้ใช้ใน Discord พร้อมสาเหตุที่วิเคราะห์ได้
       await target

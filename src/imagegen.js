@@ -3,6 +3,7 @@
 // 2) endpoint /images/generations มาตรฐาน OpenAI (สำหรับ server ที่เปิดใช้)
 import config from './config.js';
 import { askAI } from './ai.js';
+import { recordHealth } from './model-health.js';
 
 const MARKDOWN_IMAGE = /!\[[^\]]*\]\(([^)\s]+)\)/;
 
@@ -13,12 +14,14 @@ export async function generateImage(prompt, model = config.imageModel) {
   // วิธีที่ 1: image model ผ่าน chat
   try {
     const { reply } = await askAI([{ role: 'user', content: prompt }], model);
+    recordHealth(model, true);
     const match = MARKDOWN_IMAGE.exec(reply);
     if (match) {
       return await toImageBuffer(match[1], model);
     }
     errors.push(`model ตอบกลับแต่ไม่มีรูป ("${reply.slice(0, 80)}…")`);
   } catch (err) {
+    recordHealth(model, false, err.message);
     errors.push(err.message.slice(0, 150));
   }
 

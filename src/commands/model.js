@@ -5,8 +5,10 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import config from '../config.js';
+import { askAI, describeAIError } from '../ai.js';
 import { getCachedModelIds, isCacheStale, refreshModelIds } from '../models.js';
 import { clearModel, getModel, setModel } from '../settings.js';
+import { describeHealth, isModelHealthy, recordHealth } from '../model-health.js';
 
 export const data = new SlashCommandBuilder()
   .setName('model')
@@ -33,17 +35,27 @@ export async function execute(interaction) {
 
   if (sub === 'set') {
     const model = interaction.options.getString('model', true);
-    setModel(interaction.guildId, model);
-    await interaction.reply({
-      content: `✅ เปลี่ยน model เป็น \`${model}\` แล้ว — ข้อความถัดไปในเซิร์ฟเวอร์นี้ใช้ model นี้ทันที`,
-      flags: MessageFlags.Ephemeral,
-    });
+
+    // ทดสอบ model ก่อนเปลี่ยนจริง — ยิงคำถามเล็ก ๆ ให้ model นั้นตอบ
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const { reply } = await askAI([{ role: 'user', content: 'ตอบแค่คำว่า ok' }], model);
+      recordHealth(model, true);
+      setModel(interaction.guildId, model);
+      await interaction.editReply({
+        content: `✅ ทดสอบ model \`${model}\` ผ่าน (ตอบกลับมา: "${reply.slice(0, 40)}")\nเปลี่ยนเป็น model ของเซิร์ฟเวอร์แล้ว — ข้อความถัดไปใช้ model นี้ทันที`,
+      });
+    } catch (err) {
+      recordHealth(model, false, err.message);
+      await interaction.editReply({
+        content: `❌ ทดสอบ model \`${model}\` ไม่ผ่าน — **ไม่ได้เปลี่ยน model**\n**สาเหตุ:** ${describeAIError(err)}`,
+      });
+    }
   } else if (sub === 'show') {
     const override = getModel(interaction.guildId);
+    const current = override ?? config.aiModel;
     await interaction.reply({
-      content: override
-        ? `🔧 model ปัจจุบัน: \`${override}\` (ตั้งผ่านคำสั่ง /model set)`
-        : `🔧 model ปัจจุบัน: \`${config.aiModel}\` (ค่าเริ่มต้นจากไฟล์ .env)`,
+      content: `🔧 model ปัจจุบัน: \`${current}\`\n   ${override ? '(ตั้งผ่านคำสั่ง /model set)' : '(ค่าเริ่มต้นจากไฟล์ .env)'}\n🩺 สถานะ: ${describeHealth(current)}`,
       flags: MessageFlags.Ephemeral,
     });
   } else if (sub === 'reset') {
@@ -55,7 +67,17 @@ export async function execute(interaction) {
   }
 }
 
+function filterChoices(pool, typed) {
+  const starts = pool.filter((id) => id.toLowerCase().startsWith(typed));
+  const contains = typed
+    ? pool.filter((id) => !id.toLowerCase().startsWith(typed) && id.toLowerCase().includes(typed))
+    : [];
+  return [...starts, ...contains].slice(0, 25).map((id) => ({ name: id, value: id }));
+}
+
 // ค้นหา model ตามที่ผู้ใช้พิมพ์ — Discord แสดงได้สูงสุด 25 รายการ
+// กรอง model ที่พังล่าสุด (30 นาที) ออกก่อน ยกเว้นพิมพ์แล้วไม่เจออะไรเลย
+// เพื่อให้ยังบังคับเลือกตัวเดิมได้ถ้าต้องการ
 export async function autocomplete(interaction) {
   const typed = interaction.options.getFocused().toLowerCase();
 
@@ -68,11 +90,10 @@ export async function autocomplete(interaction) {
     refreshModelIds().catch(() => {});
   }
 
-  const starts = ids.filter((id) => id.toLowerCase().startsWith(typed));
-  const contains = typed
-    ? ids.filter((id) => !id.toLowerCase().startsWith(typed) && id.toLowerCase().includes(typed))
-    : [];
-  const choices = [...starts, ...contains].slice(0, 25).map((id) => ({ name: id, value: id }));
+  let choices = filterChoices(ids.filter(isModelHealthy), typed);
+  if (choices.length === 0 && typed) {
+    choices = filterChoices(ids, typed);
+  }
 
   await interaction.respond(choices);
 }

@@ -3,6 +3,7 @@ import config from '../config.js';
 import { askAI, describeAIError } from '../ai.js';
 import { getMessages, remember } from '../memory.js';
 import { getModel } from '../settings.js';
+import { recordHealth } from '../model-health.js';
 import { checkCooldown, clearBusy, isBusy, setBusy } from '../cooldown.js';
 import { recordUsage } from '../usage.js';
 import { answerEmbeds, buildErrorEmbed } from '../embed.js';
@@ -47,12 +48,14 @@ export async function execute(interaction) {
     ];
 
     const { reply, usage } = await askAI(messages, model);
+    recordHealth(model, true);
     remember(key, 'user', question);
     remember(key, 'assistant', reply);
     recordUsage(interaction.guildId, interaction.user.id, model, usage);
 
     await interaction.editReply({ embeds: answerEmbeds(reply, model) });
   } catch (err) {
+    recordHealth(model, false, err.message);
     log.error(`  ❌  [/ask] ${err.message}`);
     await interaction.editReply({ embeds: [buildErrorEmbed(describeAIError(err), model)] });
   } finally {
