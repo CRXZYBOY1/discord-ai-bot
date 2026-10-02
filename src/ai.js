@@ -12,6 +12,8 @@ export async function askAI(messages) {
       model: config.aiModel,
       messages,
       temperature: 0.7,
+      // ขอ JSON ชุดเดียวจบ — server/proxy บางตัวตอบเป็น stream เป็นค่าเริ่มต้น
+      stream: false,
     }),
   });
 
@@ -22,10 +24,42 @@ export async function askAI(messages) {
     throw err;
   }
 
-  const data = await res.json();
-  const reply = data?.choices?.[0]?.message?.content?.trim();
+  let reply = '';
+  const text = await res.text();
+  try {
+    reply = extractReply(text);
+  } catch {
+    reply = '';
+  }
+
   if (!reply) {
-    throw new Error('AI API ไม่ส่งคำตอบกลับมา (โครงสร้าง response ไม่ตรงรูปแบบที่คาดไว้)');
+    throw new Error(`AI API ไม่ส่งคำตอบกลับมาในรูปแบบที่คาดไว้ เนื้อหาที่ได้: ${text.slice(0, 200)}`);
   }
   return reply;
+}
+
+// แยกคำตอบจาก response รองรับทั้ง JSON ปกติและ SSE (บาง server ตอบเป็น stream
+// แบบ "data: {...}" ต่อกันหลายชิ้น แม้จะสั่ง stream: false ไปแล้ว)
+function extractReply(text) {
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('data:')) {
+    let full = '';
+    for (const line of trimmed.split('\n')) {
+      const payload = line.trim();
+      if (!payload.startsWith('data:')) continue;
+      const json = payload.slice(5).trim();
+      if (json === '[DONE]') continue;
+      try {
+        const data = JSON.parse(json);
+        const piece = data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? '';
+        full += piece;
+      } catch {
+        // ข้ามบรรทัดที่ parse ไม่ได้
+      }
+    }
+    return full.trim();
+  }
+
+  const data = JSON.parse(trimmed);
+  return data?.choices?.[0]?.message?.content?.trim() ?? '';
 }
