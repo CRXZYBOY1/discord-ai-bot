@@ -4,6 +4,7 @@ import { askAI, describeAIError } from '../ai.js';
 import { getMessages, remember } from '../memory.js';
 import { getModel } from '../settings.js';
 import { recordHealth } from '../model-health.js';
+import { prepareLiveInfo } from '../search.js';
 import { checkCooldown, clearBusy, isBusy, setBusy } from '../cooldown.js';
 import { recordUsage } from '../usage.js';
 import { answerEmbeds, buildErrorEmbed } from '../embed.js';
@@ -37,14 +38,19 @@ export async function execute(interaction) {
   await interaction.deferReply();
   setBusy(interaction.user.id);
 
-  const model = getModel(interaction.guildId) ?? config.aiModel;
+  // คำถามข้อมูลสด (อากาศ/ข่าว/ราคา ฯลฯ) — ตรวจและหาข้อมูลให้อัตโนมัติ
+  const live = await prepareLiveInfo(question);
+  const model = live?.model ?? getModel(interaction.guildId) ?? config.aiModel;
 
   try {
     const key = `${interaction.guildId}:${interaction.channelId}`;
     const messages = [
       { role: 'system', content: config.systemPrompt },
       ...getMessages(key),
-      { role: 'user', content: question },
+      {
+        role: 'user',
+        content: live?.contextBlock ? `${live.contextBlock}\n\nคำถาม: ${question}` : question,
+      },
     ];
 
     const { reply, usage } = await askAI(messages, model);

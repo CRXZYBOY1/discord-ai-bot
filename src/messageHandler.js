@@ -9,6 +9,7 @@ import { answerEmbeds, buildErrorEmbed } from './embed.js';
 import { checkCooldown, isBusy, setBusy, clearBusy } from './cooldown.js';
 import { recordUsage } from './usage.js';
 import { collectDocuments } from './documents.js';
+import { prepareLiveInfo } from './search.js';
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB ต่อรูป
@@ -140,6 +141,9 @@ export function createMessageHandler() {
     // บริบทจาก reply / ลิงก์ข้อความ
     const contextParts = await collectContext(message);
 
+    // คำถามข้อมูลสด (อากาศ/ข่าว/ราคา ฯลฯ) — ตรวจและหาข้อมูลให้อัตโนมัติ
+    const live = await prepareLiveInfo(text);
+
     // โหมดเธรด: คำถามในช่องหลัก → เปิดเธรดใหม่แยกให้แต่ละคำถาม
     let target = channel;
     let key = `${message.guildId}:${channel.id}`;
@@ -159,8 +163,8 @@ export function createMessageHandler() {
     // ขึ้นสถานะ "กำลังพิมพ์..." ระหว่างรอ AI (ถ้า AI ใช้เวลานานกว่า ~10 วิ สถานะจะหายไปเอง ไม่กระทบการทำงาน)
     await target.sendTyping().catch(() => {});
 
-    // ใช้ model ที่ตั้งผ่าน /model ของเซิร์ฟเวอร์นี้ ถ้าไม่มีใช้ค่าเริ่มต้นจาก .env
-    const model = getModel(message.guildId) ?? config.aiModel;
+    // คำถามข้อมูลสดใช้ search model ถ้ามีตั้งไว้ ไม่งั้นใช้ model ปกติของเซิร์ฟเวอร์
+    const model = live?.model ?? getModel(message.guildId) ?? config.aiModel;
 
     try {
       setBusy(message.author.id);
@@ -171,6 +175,7 @@ export function createMessageHandler() {
       // ประกอบบริบทเสริม: ข้อความที่ reply/ลิงก์มา + เนื้อหาเอกสารแนบ
       const prefix = [];
       if (contextParts.length > 0) prefix.push(contextParts.join('\n'));
+      if (live?.contextBlock) prefix.push(live.contextBlock);
       if (documents.length > 0) {
         prefix.push(documents.map((d) => `[เอกสารแนบ: ${d.name}]\n${d.content}`).join('\n\n'));
       }

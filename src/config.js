@@ -54,6 +54,8 @@ const config = {
   imageModel: process.env.IMAGE_MODEL?.trim() || 'ag/gemini-3.1-flash-image',
   // สีกล่อง embed (เลขฐาน 16)
   embedColor: process.env.EMBED_COLOR?.trim() || '5865F2',
+  // search model สำหรับคำถามข้อมูลสด (ถ้าว่าง จะค้นเว็บเองผ่าน DuckDuckGo แล้วฉีดผลให้ model ปกติ)
+  searchModel: process.env.SEARCH_MODEL?.trim() || null,
 };
 
 export default config;
