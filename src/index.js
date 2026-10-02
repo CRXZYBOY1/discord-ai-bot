@@ -34,7 +34,7 @@ client.once(Events.ClientReady, async (c) => {
 
   log.rule('━');
   log.success('  🎉  พร้อมใช้งาน! พิมพ์ข้อความในช่องที่กำหนดเพื่อถาม AI');
-  log.dim('  ⌨️   คำสั่ง: /model set • /model show • /model reset');
+  log.dim('  ⌨️   คำสั่ง: /ask • /draw • /model • /reset • /usage');
   log.rule('━');
 });
 

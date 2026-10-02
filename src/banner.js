@@ -13,4 +13,6 @@ export function printStartupBanner(client) {
   log.item('🧠', 'โมเดลเริ่มต้น', paint('95', config.aiModel));
   log.item('🌐', 'AI Server', paint('90', config.aiBaseUrl));
   log.item('📚', 'model ในแคช', `${getCachedModelIds().length.toLocaleString('en-US')} ตัว`);
+  log.item('🧵', 'โหมดเธรด', config.threadMode ? 'เปิด (แยกเธรดต่อคำถาม)' : 'ปิด');
+  log.item('⏱️', 'กันสแปม', `${config.cooldownSeconds} วิ/คำถาม • ${config.imageCooldownSeconds} วิ//draw`);
 }

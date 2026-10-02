@@ -34,6 +34,8 @@ if (allowedChannelIds.length === 0 || invalidIds.length > 0) {
 }
 
 const historyLimit = Number.parseInt(process.env.HISTORY_LIMIT ?? '20', 10);
+const cooldownSeconds = Number.parseInt(process.env.COOLDOWN_SECONDS ?? '10', 10);
+const imageCooldownSeconds = Number.parseInt(process.env.IMAGE_COOLDOWN_SECONDS ?? '30', 10);
 
 const config = {
   discordToken: process.env.DISCORD_TOKEN.trim(),
@@ -43,6 +45,15 @@ const config = {
   allowedChannelIds: new Set(allowedChannelIds),
   systemPrompt: process.env.SYSTEM_PROMPT?.trim() || 'คุณคือผู้ช่วย AI ที่ตอบคำถามเป็นภาษาไทยอย่างกระชับและถูกต้อง',
   historyLimit: Number.isFinite(historyLimit) && historyLimit > 0 ? historyLimit : 20,
+  // โหมดเธรด: เปิดเธรดใหม่ให้แต่ละคำถามในช่องที่กำหนด (ปิดด้วย THREAD_MODE=false)
+  threadMode: (process.env.THREAD_MODE ?? 'true').trim().toLowerCase() !== 'false',
+  // กันสแปม: วินาทีขั้นต่ำระหว่างการถามของคนเดียวกัน
+  cooldownSeconds: Number.isFinite(cooldownSeconds) && cooldownSeconds >= 0 ? cooldownSeconds : 10,
+  imageCooldownSeconds: Number.isFinite(imageCooldownSeconds) && imageCooldownSeconds >= 0 ? imageCooldownSeconds : 30,
+  // model สำหรับ /draw (image model)
+  imageModel: process.env.IMAGE_MODEL?.trim() || 'ag/gemini-3.1-flash-image',
+  // สีกล่อง embed (เลขฐาน 16)
+  embedColor: process.env.EMBED_COLOR?.trim() || '5865F2',
 };
 
 export default config;

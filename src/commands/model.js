@@ -1,4 +1,9 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import {
+  InteractionContextType,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+} from 'discord.js';
 import config from '../config.js';
 import { getCachedModelIds, isCacheStale, refreshModelIds } from '../models.js';
 import { clearModel, getModel, setModel } from '../settings.js';
@@ -6,6 +11,7 @@ import { clearModel, getModel, setModel } from '../settings.js';
 export const data = new SlashCommandBuilder()
   .setName('model')
   .setDescription('ดู/เปลี่ยน model AI ที่บอทใช้ตอบ (ต้องเป็นผู้ดูแลเซิร์ฟเวอร์)')
+  .setContexts(InteractionContextType.Guild)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand((sc) =>
     sc

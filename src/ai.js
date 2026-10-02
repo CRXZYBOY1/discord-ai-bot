@@ -2,6 +2,7 @@ import config from './config.js';
 
 // ส่งบทสนทนาไปถาม AI ผ่าน endpoint /chat/completions (มาตรฐานเดียวกับ OpenAI)
 // ถ้าไม่ระบุ model จะใช้ค่าเริ่มต้นจาก .env
+// คืนค่า { reply, usage } — usage อาจเป็น null ถ้า server ไม่ส่งมา
 export async function askAI(messages, model = config.aiModel) {
   const res = await fetch(`${config.aiBaseUrl}/chat/completions`, {
     method: 'POST',
@@ -25,10 +26,12 @@ export async function askAI(messages, model = config.aiModel) {
     throw err;
   }
 
-  let reply = '';
   const text = await res.text();
+  let reply = '';
+  let usage = null;
   try {
     reply = extractReply(text);
+    usage = extractUsage(text);
   } catch {
     reply = '';
   }
@@ -36,7 +39,7 @@ export async function askAI(messages, model = config.aiModel) {
   if (!reply) {
     throw new Error(`AI API ไม่ส่งคำตอบกลับมาในรูปแบบที่คาดไว้ เนื้อหาที่ได้: ${text.slice(0, 200)}`);
   }
-  return reply;
+  return { reply, usage };
 }
 
 // แยกคำตอบจาก response รองรับทั้ง JSON ปกติและ SSE (บาง server ตอบเป็น stream
@@ -63,4 +66,30 @@ function extractReply(text) {
 
   const data = JSON.parse(trimmed);
   return data?.choices?.[0]?.message?.content?.trim() ?? '';
+}
+
+// ดึงข้อมูล usage (จำนวน token) — ไม่มีก็คืน null
+function extractUsage(text) {
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('data:')) {
+    for (const line of trimmed.split('\n').reverse()) {
+      const payload = line.trim();
+      if (!payload.startsWith('data:')) continue;
+      const json = payload.slice(5).trim();
+      if (json === '[DONE]') continue;
+      try {
+        const usage = JSON.parse(json)?.usage;
+        if (usage) return usage;
+      } catch {
+        // ข้ามบรรทัดที่ parse ไม่ได้
+      }
+    }
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed)?.usage ?? null;
+  } catch {
+    return null;
+  }
 }
