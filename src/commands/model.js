@@ -1,6 +1,6 @@
 import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import config from '../config.js';
-import { getModelIds } from '../models.js';
+import { getCachedModelIds, isCacheStale, refreshModelIds } from '../models.js';
 import { clearModel, getModel, setModel } from '../settings.js';
 
 export const data = new SlashCommandBuilder()
@@ -52,7 +52,15 @@ export async function execute(interaction) {
 // ค้นหา model ตามที่ผู้ใช้พิมพ์ — Discord แสดงได้สูงสุด 25 รายการ
 export async function autocomplete(interaction) {
   const typed = interaction.options.getFocused().toLowerCase();
-  const ids = await getModelIds().catch(() => []);
+
+  // ต้องตอบภายใน ~3 วินาที จึงใช้แคชในเครื่องเป็นหลัก
+  // (server ล่ม/ช้าก็ยังตอบได้) แล้วรีเฟรชเบื้องหลังเมื่อข้อมูลเก่า
+  let ids = getCachedModelIds();
+  if (ids.length === 0) {
+    ids = await refreshModelIds().catch(() => []);
+  } else if (isCacheStale()) {
+    refreshModelIds().catch(() => {});
+  }
 
   const starts = ids.filter((id) => id.toLowerCase().startsWith(typed));
   const contains = typed

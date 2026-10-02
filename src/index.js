@@ -2,7 +2,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import config from './config.js';
 import { createMessageHandler } from './messageHandler.js';
 import { handleInteraction, registerCommands } from './commands.js';
-import { getModelIds } from './models.js';
+import { getCachedModelIds, refreshModelIds } from './models.js';
 
 const client = new Client({
   intents: [
@@ -19,10 +19,18 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`   โมเดล AI (ค่าเริ่มต้น): ${config.aiModel} (${config.aiBaseUrl})`);
   console.log('   พิมพ์ข้อความในช่องที่กำหนดเพื่อถาม AI หรือใช้คำสั่ง /model เพื่อเปลี่ยน model');
 
-  // โหลดรายชื่อ model ไว้ล่วงหน้า ให้การค้นหาใน /model ตอบไวตั้งแต่ครั้งแรก
-  getModelIds()
-    .then((n) => console.log(`   พร้อมรายชื่อ model ${n} ตัวสำหรับคำสั่ง /model`))
-    .catch((err) => console.log(`   ⚠️ ยังดึงรายชื่อ model ไม่ได้ (${err.message}) — จะลองใหม่เองเมื่อมีคนใช้คำสั่ง`));
+  // โหลดรายชื่อ model ไว้ล่วงหน้า — ถ้ามีแคชในเครื่อง ตอบใน /model ได้ทันที
+  // แม้ AI server ล่ม และดึงรายชื่อล่าสุดเบื้องหลังเมื่อ server ตอบได้
+  refreshModelIds()
+    .then((ids) => console.log(`   พร้อมรายชื่อ model ${ids.length} ตัวสำหรับคำสั่ง /model`))
+    .catch(() => {
+      const cached = getCachedModelIds().length;
+      console.log(
+        cached > 0
+          ? `   ⚠️ ดึงรายชื่อ model ล่าสุดจาก server ไม่ได้ — ใช้แคชเดิม ${cached} ตัวต่อไป`
+          : '   ⚠️ ยังไม่มีรายชื่อ model (AI server ไม่ตอบ) — จะลองใหม่อัตโนมัติเมื่อมีคนใช้ /model'
+      );
+    });
 
   await registerCommands(client);
 });
