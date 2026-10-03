@@ -50,7 +50,7 @@ export async function collectDocuments(message) {
       continue;
     }
     try {
-      const res = await fetch(attachment.url);
+      const res = await fetch(attachment.url, { signal: AbortSignal.timeout(60 * 1000) });
       if (!res.ok) throw new Error(`สถานะ ${res.status}`);
       const buffer = Buffer.from(await res.arrayBuffer());
 

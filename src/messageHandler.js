@@ -1,4 +1,5 @@
 import { PermissionFlagsBits } from 'discord.js';
+import sharp from 'sharp';
 import config from './config.js';
 import { askAI, describeAIError } from './ai.js';
 import { getMessages, remember } from './memory.js';
@@ -12,7 +13,11 @@ import { collectDocuments } from './documents.js';
 import { prepareLiveInfo } from './search.js';
 
 const MAX_IMAGES = 4;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB ต่อรูป
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB ต่อรูป (บน Discord)
+// AI server จำนวนมาก (nginx) จำกัดขนาด request — ย่อเป็น 1024px JPEG เสมอ
+// vision model ไม่ต้องใช้รูปใหญ่กว่านี้อยู่แล้ว ยังประหยัด token ด้วย
+const IMAGE_MAX_SIDE = 1024;
+const IMAGE_QUALITY = 80;
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif)$/i;
 const DEFAULT_IMAGE_PROMPT = 'ช่วยดูรูปที่แนบมาให้หน่อยครับ มีอะไรอยู่ในรูป อธิบายให้เข้าใจง่าย';
 const DEFAULT_DOC_PROMPT = 'ช่วยสรุปเนื้อหาสำคัญในเอกสารที่แนบมาให้หน่อยครับ';
@@ -27,6 +32,23 @@ function isImageAttachment(attachment) {
     attachment.contentType?.startsWith('image/') ||
     IMAGE_EXTENSIONS.test(attachment.name ?? '')
   );
+}
+
+// ย่อ/บีบอัดรูปเป็น JPEG 1024px — กัน request ใหญ่เกินที่ AI server (nginx) รับได้ (413)
+async function toDataUri(buffer) {
+  try {
+    const processed = await sharp(buffer)
+      .resize({ width: IMAGE_MAX_SIDE, height: IMAGE_MAX_SIDE, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: IMAGE_QUALITY })
+      .toBuffer();
+    return `data:image/jpeg;base64,${processed.toString('base64')}`;
+  } catch {
+    // sharp อ่านไฟล์นี้ไม่ได้ (รูปเสีย/ฟอร์แมตแปลก) — ลองส่งต้นฉบับถ้ายังไม่ใหญ่เกิน
+    if (buffer.length <= 512 * 1024) {
+      return `data:image/png;base64,${buffer.toString('base64')}`;
+    }
+    throw new Error('รูปแปลงขนาดไม่สำเร็จและไฟล์ใหญ่เกินกว่าจะส่งตรง');
+  }
 }
 
 // ดาวน์โหลดรูปที่แนบมากับข้อความ แล้วแปลงเป็น data URI (base64)
@@ -44,11 +66,10 @@ export async function collectImages(message) {
       continue;
     }
     try {
-      const res = await fetch(attachment.url);
+      const res = await fetch(attachment.url, { signal: AbortSignal.timeout(60 * 1000) });
       if (!res.ok) throw new Error(`สถานะ ${res.status}`);
       const buffer = Buffer.from(await res.arrayBuffer());
-      const type = attachment.contentType || 'image/png';
-      dataUris.push(`data:${type};base64,${buffer.toString('base64')}`);
+      dataUris.push(await toDataUri(buffer));
     } catch (err) {
       log.warn(`  ⚠️  ดาวน์โหลดรูป ${attachment.name ?? attachment.id} ไม่สำเร็จ: ${err.message}`);
     }
@@ -142,7 +163,9 @@ export function createMessageHandler() {
     const contextParts = await collectContext(message);
 
     // คำถามข้อมูลสด (อากาศ/ข่าว/ราคา ฯลฯ) — ตรวจและหาข้อมูลให้อัตโนมัติ
-    const live = await prepareLiveInfo(text);
+    // (ตัดลิงก์ Discord ออกจากคำค้นก่อน ไม่งั้น URL ยาว ๆ ทำให้ผลค้นหาเพี้ยน)
+    const liveQuery = text.replace(MESSAGE_LINK, ' ').trim() || text;
+    const live = await prepareLiveInfo(liveQuery);
 
     // โหมดเธรด: คำถามในช่องหลัก → เปิดเธรดใหม่แยกให้แต่ละคำถาม
     let target = channel;

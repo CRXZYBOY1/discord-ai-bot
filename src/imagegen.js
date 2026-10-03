@@ -31,6 +31,7 @@ export async function generateImage(prompt, model = config.imageModel) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.aiApiKey}` },
       body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024' }),
+      signal: AbortSignal.timeout(120 * 1000),
     });
     if (res.ok) {
       const data = await res.json();
@@ -54,7 +55,7 @@ async function toImageBuffer(source, model) {
     return { buffer: Buffer.from(base64, 'base64'), model };
   }
 
-  const res = await fetch(source);
+  const res = await fetch(source, { signal: AbortSignal.timeout(60 * 1000) });
   if (!res.ok) throw new Error(`ดาวน์โหลดรูปไม่สำเร็จ (สถานะ ${res.status})`);
   return { buffer: Buffer.from(await res.arrayBuffer()), model };
 }

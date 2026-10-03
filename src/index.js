@@ -43,7 +43,9 @@ client.on(Events.MessageCreate, createMessageHandler());
 client.on(Events.InteractionCreate, handleInteraction);
 
 // เผื่อเอาบอทไปเพิ่มในเซิร์ฟเวอร์ใหม่ คำสั่ง /model ต้องลงทะเบียนด้วย
-client.on(Events.GuildCreate, () => registerCommands(client));
+client.on(Events.GuildCreate, (guild) => {
+  registerCommands(client).catch((err) => log.error(`  ❌  ลงทะเบียนคำสั่งในเซิร์ฟเวอร์ใหม่ ${guild.id} ไม่สำเร็จ: ${err.message}`));
+});
 
 client.on(Events.Error, (err) => {
   log.error(`  💥  [Discord] client error: ${err.message}`);

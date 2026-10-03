@@ -1,5 +1,7 @@
 import config from './config.js';
 
+const REQUEST_TIMEOUT_MS = 120 * 1000; // ไม่รอ AI server เกิน 2 นาที — กันคำขอค้างไม่จบ
+
 // ส่งบทสนทนาไปถาม AI ผ่าน endpoint /chat/completions (มาตรฐานเดียวกับ OpenAI)
 // ถ้าไม่ระบุ model จะใช้ค่าเริ่มต้นจาก .env
 // คืนค่า { reply, usage } — usage อาจเป็น null ถ้า server ไม่ส่งมา
@@ -17,6 +19,7 @@ export async function askAI(messages, model = config.aiModel) {
       // ขอ JSON ชุดเดียวจบ — server/proxy บางตัวตอบเป็น stream เป็นค่าเริ่มต้น
       stream: false,
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -44,6 +47,11 @@ export async function askAI(messages, model = config.aiModel) {
 
 // แปล error จากการเรียก AI เป็นคำอธิบายสาเหตุภาษาไทย สำหรับแจ้งผู้ใช้ใน Discord
 export function describeAIError(err) {
+  // หมดเวลารอ (AbortSignal.timeout)
+  if (err?.name === 'TimeoutError') {
+    return 'AI server ตอบช้าเกินกำหนด (หมดเวลารอ 2 นาที) — ลองใหม่อีกครั้ง หรือเปลี่ยน model ที่ตอบไวกว่า';
+  }
+
   // กรณี server ตอบกลับด้วยรหัส HTTP
   if (err?.status) {
     const statusMap = {
@@ -53,6 +61,7 @@ export function describeAIError(err) {
       404: 'ไม่พบ endpoint หรือ model — ตรวจ `AI_BASE_URL` (ส่วนใหญ่ต้องลงท้ายด้วย /v1) หรือชื่อ model ไม่มีอยู่',
       408: 'AI server ตอบช้าเกินกำหนด (timeout) — ลองใหม่อีกครั้ง',
       429: 'โดนจำกัดการใช้งาน (rate limit) — AI server ยุ่งหรือใช้เกินโควตา รอสักครู่แล้วลองใหม่',
+      413: 'รูป/ไฟล์แนบใหญ่เกินที่ AI server รับได้ — ลองส่งรูปขนาดเล็กลง',
       500: 'AI server ขัดข้องภายใน (500) — รอสักครู่แล้วลองใหม่',
       502: 'AI server ขัดข้อง (502) — ตัวกลาง/ผู้ให้บริการมีปัญหา รอแล้วลองใหม่',
       503: 'AI server ไม่พร้อมใช้งาน (503) — อาจกำลังปิดปรับปรุงหรือ provider ล่ม รอแล้วลองใหม่',

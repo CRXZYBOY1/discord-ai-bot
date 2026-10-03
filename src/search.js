@@ -47,6 +47,7 @@ function decodeDdgUrl(href) {
 export async function searchWeb(query, maxResults = MAX_RESULTS) {
   const res = await fetch(`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'th,en' },
+    signal: AbortSignal.timeout(15 * 1000), // ค้นเว็บต้องไว หมดเวลา 15 วิแล้วตอบด้วยความรู้เดิม
   });
   if (!res.ok) throw new Error(`DuckDuckGo ตอบด้วยสถานะ ${res.status}`);
 
