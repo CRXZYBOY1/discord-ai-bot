@@ -144,6 +144,51 @@ npm start
 - ความพร้อมขึ้นกับ credentials ของ router ณ ตอนนั้น ถ้า provider ล่ม/โดนจำกัด บอทจะแจ้ง error กลับมา ลองใหม่หรือเปลี่ยน IMAGE_MODEL ได้
 - รองรับทั้ง image model ที่ตอบผ่าน chat และ endpoint มาตรฐาน `/images/generations`
 
+## รันบอท 24 ชั่วโมง
+
+### ทางเลือก 1: เครื่องนี้ด้วย pm2 (ติดตั้งเรียบร้อยแล้ว)
+
+บอทถูกจัดการด้วย pm2: พังแล้วรีเอง, กินแรมเกินรีเอง, และ**เปิดเครื่องมาพบว่ารันอยู่แล้ว** (ผ่าน pm2-windows-startup)
+
+คำสั่งที่ใช้บ่อย:
+
+| คำสั่ง | ทำอะไร |
+|---|---|
+| `pm2 status` | ดูสถานะบอท |
+| `pm2 logs ai-bot` | ดู log แบบสด (กด Ctrl+C ออก) |
+| `pm2 restart ai-bot` | รีสตาร์ท (หลังแก้โค้ดหรือ `.env`) |
+| `pm2 stop ai-bot` | หยุดบอท |
+| `pm2 start ecosystem.config.cjs` | เริ่มใหม่หลังหยุด |
+| `pm2 monit` | หน้าจอมอนิเตอร์ CPU/RAM แบบสด |
+
+⚠️ **ข้อควรระวัง 2 ข้อ:**
+1. **ห้ามรัน `npm start` ซ้อนกับ pm2** — บอทจะตอบข้อความซ้ำ 2 ครั้ง (รันได้แค่ instance เดียว)
+2. ตั้งค่า Windows **ไม่ให้เครื่อง sleep**: Settings → System → Power & battery → Screen and sleep → เลือก "Never" (หรือรันคำสั่ง `powercfg /change standby-timeout-ac 0`)
+
+### ทางเลือก 2: VPS (Ubuntu) — เสถียรที่สุด
+
+เหมาะเมื่อไม่อยากเปิดคอมตลอดเวลา (RAM 1GB ก็พอ ราว 100-200 บาท/เดือน)
+
+1. ซื้อ VPS Ubuntu 22.04+ แล้ว `ssh root@IP-ของ-VPS`
+2. ติดตั้ง Node.js 20:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+   ```
+3. คัดลอกโปรเจกต์ขึ้น VPS (git clone หรือ scp -r ทั้งโฟลเดอร์) — **อย่าลืมไฟล์ `.env`**
+4. ติดตั้งและเริ่มบอท:
+   ```bash
+   cd โฟลเดอร์โปรเจกต์
+   npm install --omit=dev
+   npm install -g pm2
+   pm2 start ecosystem.config.cjs
+   pm2 save
+   pm2 startup   # คัดลอกคำสั่งที่ระบบพิมพ์ให้ แล้วรันตาม
+   ```
+5. เสร็จแล้วบอทรัน 24 ชม. บน VPS — รีบูตเครื่องก็กลับมาเอง
+
+> 💡 ย้ายจากเครื่องไป VPS แล้ว อย่าลืม `pm2 delete ai-bot` บนเครื่องเดิม ไม่งั้นบอทจะรันสองที่พร้อมกันและตอบซ้ำ
+
 ## แก้ปัญหาที่พบบ่อย
 
 | อาการ | สาเหตุและวิธีแก้ |
@@ -208,4 +253,6 @@ src/
 
 scripts/
 └── list-models.mjs   # ดึงรายชื่อ model ทั้งหมดลงไฟล์ MODELS.md (npm run models)
+
+ecosystem.config.cjs # การตั้งค่า pm2 สำหรับรัน 24 ชั่วโมง (เครื่องนี้/VPS ใช้ไฟล์เดียวกัน)
 ```
