@@ -11,6 +11,7 @@ import { checkCooldown, isBusy, setBusy, clearBusy } from './cooldown.js';
 import { recordUsage } from './usage.js';
 import { collectDocuments } from './documents.js';
 import { prepareLiveInfo } from './search.js';
+import { trackThreadActivity } from './threadCleaner.js';
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB ต่อรูป (บน Discord)
@@ -146,6 +147,9 @@ export function createMessageHandler() {
     // ตอบเฉพาะช่องที่กำหนด และเธรดที่ผูกกับช่องที่กำหนด
     if (isThread ? !parentAllowed && !channelAllowed : !channelAllowed) return;
 
+    // มีคนพิมพ์ในเธรด — เลื่อนเวลาลบอัตโนมัติออกไปใหม่
+    if (isThread) trackThreadActivity(channel, `${message.guildId}:${channel.id}`);
+
     const text = message.content.trim();
     const images = await collectImages(message);
     const documents = await collectDocuments(message);
@@ -178,6 +182,7 @@ export function createMessageHandler() {
           reason: 'Discord AI Bot — แยกคำถามเป็นเธรด',
         });
         key = `${message.guildId}:${target.id}`;
+        trackThreadActivity(target, key);
       } catch (err) {
         log.warn(`  ⚠️  สร้างเธรดไม่สำเร็จ (${err.message}) — ตอบในช่องเดิม`);
       }

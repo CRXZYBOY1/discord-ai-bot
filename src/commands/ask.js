@@ -8,6 +8,7 @@ import { prepareLiveInfo } from '../search.js';
 import { checkCooldown, clearBusy, isBusy, setBusy } from '../cooldown.js';
 import { recordUsage } from '../usage.js';
 import { answerEmbeds, buildErrorEmbed } from '../embed.js';
+import { trackThreadActivity } from '../threadCleaner.js';
 import { log } from '../logger.js';
 
 export const data = new SlashCommandBuilder()
@@ -44,6 +45,8 @@ export async function execute(interaction) {
 
   try {
     const key = `${interaction.guildId}:${interaction.channelId}`;
+    // /ask ในเธรดนับเป็นกิจกรรม — เลื่อนเวลาลบอัตโนมัติออกไปใหม่
+    if (interaction.channel?.isThread?.()) trackThreadActivity(interaction.channel, key);
     const messages = [
       { role: 'system', content: config.systemPrompt },
       ...getMessages(key),

@@ -3,6 +3,7 @@ import config from './config.js';
 import { createMessageHandler } from './messageHandler.js';
 import { handleInteraction, registerCommands } from './commands.js';
 import { getCachedModelIds, refreshModelIds } from './models.js';
+import { restoreThreadTimers, forgetThread } from './threadCleaner.js';
 import { log, paint } from './logger.js';
 import { printStartupBanner } from './banner.js';
 
@@ -32,6 +33,9 @@ client.once(Events.ClientReady, async (c) => {
       );
     });
 
+  // จับเวลาลบเธรดที่ยังเปิดอยู่ต่อจากเดิม (ตัวจับเวลาหายไปตอนรีสตาร์ท)
+  restoreThreadTimers(client).catch((err) => log.warn(`  ⚠️  ตั้งเวลาลบเธรดไม่สำเร็จ: ${err.message}`));
+
   log.rule('━');
   log.success('  🎉  พร้อมใช้งาน! พิมพ์ข้อความในช่องที่กำหนดเพื่อถาม AI');
   log.dim('  ⌨️   คำสั่ง: /ask • /draw • /compare • /model • /reset • /usage');
@@ -39,6 +43,9 @@ client.once(Events.ClientReady, async (c) => {
 });
 
 client.on(Events.MessageCreate, createMessageHandler());
+
+// เธรดโดนลบเองก่อนเวลา (เช่น แอดมินลบมือ) — เคลียร์ตัวจับเวลาทิ้ง
+client.on(Events.ThreadDelete, (thread) => forgetThread(thread.id));
 
 client.on(Events.InteractionCreate, handleInteraction);
 
